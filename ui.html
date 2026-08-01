@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <style>
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #111;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        #bg {
+            position: fixed;
+            inset: -20px;
+            background-size: cover;
+            background-position: center;
+            filter: blur(30px) brightness(0.5);
+            transition: background-image 0.8s ease;
+        }
+
+        #content {
+            position: relative;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        #cover {
+            width: 280px;
+            height: 280px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+            object-fit: cover;
+            margin-bottom: 24px;
+        }
+
+        #title {
+            font-size: 2em;
+            font-weight: 600;
+        }
+
+        #artist {
+            font-size: 1.2em;
+            opacity: 0.8;
+            margin-top: 6px;
+        }
+
+        #progress-container {
+            width: 300px;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 2px;
+            margin-top: 20px;
+            overflow: hidden;
+        }
+
+        #progress-bar {
+            height: 100%;
+            background: white;
+            width: 0%;
+            transition: width 1s linear;
+        }
+
+        #time {
+            font-size: 0.8em;
+            opacity: 0.6;
+            margin-top: 8px;
+        }
+
+        #close-btn {
+            position: fixed;
+            top: 16px;
+            right: 16px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
+            color: white;
+            font-size: 1.2em;
+            cursor: pointer;
+            z-index: 10;
+            transition: background 0.2s ease;
+            user-select: none;
+        }
+
+        #close-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #fs-btn {
+            position: fixed;
+            top: 16px;
+            left: 16px;
+            width: 36px;
+            height: 36px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.08);
+            color: white;
+            font-size: 1.2em;
+            cursor: pointer;
+            z-index: 10;
+            transition: background 0.2s ease;
+            user-select: none;
+        }
+
+        #fs-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="bg"></div>
+    <div id="content">
+        <div id="close-btn" onclick="closeApp()">✕</div>
+        <div id="fs-btn" onclick="toggleFS()">🗖</div>
+        <img id="cover" src="" />
+        <div id="title">—</div>
+        <div id="artist">—</div>
+        <div id="progress-container">
+            <div id="progress-bar"></div>
+        </div>
+        <div id="time">0:00 / 0:00</div>
+    </div>
+
+    <script>
+        async function refresh() {
+            try {
+                const data = await window.pywebview.api.get_now_playing();
+                updateNowPlaying(data);
+            } catch (e) {
+                console.error('refresh error', e);
+            }
+            setTimeout(refresh, 1000);
+        }
+
+        window.addEventListener('pywebviewready', refresh);
+
+        function fmt(sec) {
+            sec = Math.max(0, Math.floor(sec));
+            const m = Math.floor(sec / 60);
+            const s = String(sec % 60).padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function updateNowPlaying(data) {
+            if (!data) return;
+            document.getElementById('title').textContent = data.title || '—';
+            document.getElementById('artist').textContent = data.artist || '—';
+
+            if (data.thumbnail_b64) {
+                const src = `data:image/jpeg;base64,${data.thumbnail_b64}`;
+                document.getElementById('cover').src = src;
+                document.getElementById('bg').style.backgroundImage = `url(${src})`;
+            }
+
+            const pct = data.duration ? (data.position / data.duration) * 100 : 0;
+            document.getElementById('progress-bar').style.width = `${pct}%`;
+            document.getElementById('time').textContent =
+                `${fmt(data.position)} / ${fmt(data.duration)}`;
+        }
+
+        function closeApp() {
+            window.pywebview.api.close_app();
+        }
+
+        function toggleFS() {
+            window.pywebview.api.toggle_fullscreen();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeApp();
+            }
+        });
+    </script>
+</body>
+
+</html>
