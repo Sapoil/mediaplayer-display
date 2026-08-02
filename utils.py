@@ -6,6 +6,9 @@ from winrt.windows.media.control import (
 from winrt.windows.storage.streams import DataReader, Buffer, InputStreamOptions
 import base64
 import os
+from datetime import datetime, timezone
+
+PLAYING_STATUS = 4
 
 
 # Allows to get and control the volume
@@ -45,13 +48,27 @@ async def get_media_info():
     timeline = current.get_timeline_properties()
     playback = current.get_playback_info()
     source_app = current.source_app_user_model_id
+
+    position = timeline.position.total_seconds()
+    duration = (timeline.end_time - timeline.start_time).total_seconds()
+    status = int(playback.playback_status)
+
+    last_updated = timeline.last_updated_time
+    if status == PLAYING_STATUS and last_updated is not None:
+        now = datetime.now(timezone.utc) if last_updated.tzinfo else datetime.now()
+        elapsed = (now - last_updated).total_seconds()
+        if elapsed > 0:
+            position += elapsed
+            if duration:
+                position = min(position, duration)
+
     return {
         "title": info.title if info else "",
         "artist": info.artist if info else "",
         "album": info.album_title if info else "",
-        "status": int(playback.playback_status),
-        "position": timeline.position.total_seconds(),
-        "duration": (timeline.end_time - timeline.start_time).total_seconds(),
+        "status": status,
+        "position": position,
+        "duration": duration,
         "thumbnail_b64": await get_thumbnail_b64(info.thumbnail if info else ""),
         "source_app": clean_source_app(source_app),
     }
