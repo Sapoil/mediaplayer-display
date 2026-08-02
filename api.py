@@ -79,9 +79,14 @@ class Api:
                 self.vol.SetMasterVolumeLevelScalar(value, None)
                 if value > 0 and self.vol.GetMute():
                     self.vol.SetMute(0, None)
+                data = dict(self.latest_data) if self.latest_data else {}
+                data["volume"] = round(self.vol.GetMasterVolumeLevelScalar(), 2)
+                data["muted"] = bool(self.vol.GetMute())
+                self.latest_data = data
+                return data
             else:
                 self.vol = get_volume_interface()
-            return {"volume": value, "muted": False}
+                return None
         except Exception:
             return None
 
@@ -91,10 +96,11 @@ class Api:
             if self.vol:
                 new_state = not self.vol.GetMute()
                 self.vol.SetMute(new_state, None)
-                return {
-                    "volume": round(self.vol.GetMasterVolumeLevelScalar(), 2),
-                    "muted": bool(new_state),
-                }
+                data = dict(self.latest_data) if self.latest_data else {}
+                data["volume"] = round(self.vol.GetMasterVolumeLevelScalar(), 2)
+                data["muted"] = bool(new_state)
+                self.latest_data = data
+                return data
             else:
                 self.vol = get_volume_interface()
                 return None
