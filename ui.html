@@ -55,10 +55,13 @@
         #progress-container {
             width: 300px;
             height: 4px;
+            padding: 4px 0;
             background: rgba(255, 255, 255, 0.2);
+            background-clip: content-box;
             border-radius: 2px;
             margin-top: 20px;
             overflow: hidden;
+            cursor: pointer;
         }
 
         #progress-bar {
@@ -72,6 +75,15 @@
             font-size: 0.8em;
             opacity: 0.6;
             margin-top: 8px;
+        }
+
+        #source {
+            font-size: 0.75em;
+            opacity: 0.5;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: rgba(255, 255, 255, 0.8)
         }
 
         #close-btn {
@@ -119,6 +131,29 @@
         #fs-btn:hover {
             background: rgba(255, 255, 255, 0.2);
         }
+
+        #controls {
+            display: flex;
+            gap: 20px;
+            margin-top: 20px;
+            align-items: center;
+        }
+
+        .ctrl-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.6em;
+            cursor: pointer;
+            opacity: 0.85;
+            transition: opacity 0.2s ease, transform 0.15s ease;
+            padding: 4px 8px;
+        }
+
+        .ctrl-btn:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
     </style>
 </head>
 
@@ -130,13 +165,20 @@
         <img id="cover" src="" />
         <div id="title">—</div>
         <div id="artist">—</div>
+        <div id="source"></div>
         <div id="progress-container">
             <div id="progress-bar"></div>
         </div>
         <div id="time">0:00 / 0:00</div>
+        <div id="controls">
+            <button class="ctrl-btn" onclick="prevTrack()">⏮</button>
+            <button id="play-pause-btn" class="ctrl-btn" onclick="playPause()">⏸</button>
+            <button class="ctrl-btn" onclick="nextTrack()">⏭</button>
+        </div>
     </div>
 
     <script>
+        let currentDuration = 0;
         async function refresh() {
             try {
                 const data = await window.pywebview.api.get_now_playing();
@@ -146,6 +188,24 @@
             }
             setTimeout(refresh, 1000);
         }
+
+        let isDragging = false;
+
+        const container = document.getElementById('progress-container');
+
+        container.addEventListener('mousedown', () => { isDragging = true; });
+        window.addEventListener('mouseup', (e) => {
+            if (isDragging) {
+                isDragging = false;
+                seekTo(e);  // envoie le seek seulement au relâchement
+            }
+        });
+        window.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const rect = container.getBoundingClientRect();
+            const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            document.getElementById('progress-bar').style.width = `${ratio * 100}%`;  // preview seulement
+        });
 
         window.addEventListener('pywebviewready', refresh);
 
@@ -160,17 +220,50 @@
             if (!data) return;
             document.getElementById('title').textContent = data.title || '—';
             document.getElementById('artist').textContent = data.artist || '—';
+            document.getElementById('source').textContent = data.source_app || '';
 
             if (data.thumbnail_b64) {
                 const src = `data:image/jpeg;base64,${data.thumbnail_b64}`;
                 document.getElementById('cover').src = src;
                 document.getElementById('bg').style.backgroundImage = `url(${src})`;
             }
+            currentDuration = data.duration || 0;
+            if (!isDragging) {
+                const pct = data.duration ? (data.position / data.duration) * 100 : 0;
+                document.getElementById('progress-bar').style.width = `${pct}%`;
+                document.getElementById('time').textContent =
+                    `${fmt(data.position)} / ${fmt(data.duration)}`;
+            }
+            const btn = document.getElementById('play-pause-btn');
+            btn.textContent = data.status === 4 ? '⏸' : '▶';
+        }
 
-            const pct = data.duration ? (data.position / data.duration) * 100 : 0;
-            document.getElementById('progress-bar').style.width = `${pct}%`;
-            document.getElementById('time').textContent =
-                `${fmt(data.position)} / ${fmt(data.duration)}`;
+        function seekTo(e) {
+            const container = document.getElementById('progress-container');
+            const rect = container.getBoundingClientRect();
+            const ratio = (e.clientX - rect.left) / rect.width;
+            const targetSeconds = Math.max(0, Math.min(1, ratio)) * currentDuration;
+
+            // feedback visuel immédiat, avant confirmation
+            document.getElementById('progress-bar').style.width = `${ratio * 100}%`;
+
+            window.pywebview.api.seek(targetSeconds).then(data => {
+                if (data) updateNowPlaying(data);
+            });
+        }
+        async function playPause() {
+            const btn = document.getElementById('play-pause-btn');
+            const wasPlaying = btn.textContent === '⏸';
+            btn.textContent = wasPlaying ? '▶' : '⏸';
+
+            const data = await window.pywebview.api.play_pause();
+            if (data) updateNowPlaying(data);
+        }
+        function nextTrack() {
+            window.pywebview.api.next_track();
+        }
+        function prevTrack() {
+            window.pywebview.api.previous_track();
         }
 
         function closeApp() {
