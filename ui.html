@@ -55,7 +55,7 @@
         #progress-container {
             width: 300px;
             height: 4px;
-            padding: 4px 0;
+            border: 4px solid transparent;
             background: rgba(255, 255, 255, 0.2);
             background-clip: content-box;
             border-radius: 2px;
@@ -69,6 +69,7 @@
             background: white;
             width: 0%;
             transition: width 1s linear;
+            border-radius: 2px;
         }
 
         #time {
@@ -154,6 +155,56 @@
             opacity: 1;
             transform: scale(1.1);
         }
+
+        #volume-wrapper {
+            position: fixed;
+            bottom: 30px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #mute-btn {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2em;
+            cursor: pointer;
+            opacity: 0.85;
+            transition: opacity 0.2s ease, transform 0.15s ease;
+            padding: 4px;
+        }
+
+        #mute-btn:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        #volume-container {
+            position: static;
+            rotate: 180deg;
+            width: 4px;
+            height: 120px;
+            border: 4px solid transparent;
+            background: rgba(255, 255, 255, 0.2);
+            background-clip: content-box;
+            border-radius: 6px;
+            cursor: pointer;
+            z-index: 10;
+        }
+
+        #volume-fill {
+            position: static;
+            bottom: 0;
+            left: 0;
+            width: 4px;
+            height: 0%;
+            background: white;
+            border-radius: 2px;
+            transition: height 0.1s ease;
+        }
     </style>
 </head>
 
@@ -175,10 +226,25 @@
             <button id="play-pause-btn" class="ctrl-btn" onclick="playPause()">⏸</button>
             <button class="ctrl-btn" onclick="nextTrack()">⏭</button>
         </div>
+        <div id="volume-wrapper">
+            <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🔈</button>
+            <div id="volume-container" onmousedown="startVolumeDrag(event)">
+                <div id="volume-fill"></div>
+            </div>
+        </div>
     </div>
 
     <script>
         let currentDuration = 0;
+        let isVolumeDragging = false;
+        const volumeContainer = document.getElementById('volume-container');
+        const volumeFill = document.getElementById('volume-fill');
+
+        window.addEventListener('pywebviewready', init);
+
+        function init() {
+            refresh()
+        }
         async function refresh() {
             try {
                 const data = await window.pywebview.api.get_now_playing();
@@ -207,8 +273,6 @@
             document.getElementById('progress-bar').style.width = `${ratio * 100}%`;  // preview seulement
         });
 
-        window.addEventListener('pywebviewready', refresh);
-
         function fmt(sec) {
             sec = Math.max(0, Math.floor(sec));
             const m = Math.floor(sec / 60);
@@ -228,6 +292,12 @@
                 document.getElementById('bg').style.backgroundImage = `url(${src})`;
             }
             currentDuration = data.duration || 0;
+            if (!isVolumeDragging && typeof data.volume === 'number') {
+                applyVolumeVisual(data.volume);
+            }
+            const muteBtn = document.getElementById('mute-btn');
+            muteBtn.textContent = data.muted ? '🔇' : '🔈';
+
             if (!isDragging) {
                 const pct = data.duration ? (data.position / data.duration) * 100 : 0;
                 document.getElementById('progress-bar').style.width = `${pct}%`;
@@ -279,6 +349,44 @@
                 closeApp();
             }
         });
+
+        function applyVolumeVisual(ratio) {
+            volumeFill.style.height = `${ratio * 100}%`;
+        }
+
+        function toggleMute() {
+            window.pywebview.api.toggle_mute().then(data => {
+                if (data) updateNowPlaying(data);
+            });
+            const muteBtn = document.getElementById('mute-btn');
+            muteBtn.textContent = data.muted ? '🔇' : '🔈';
+        }
+
+        function volumeRatioFromEvent(e) {
+            const rect = volumeContainer.getBoundingClientRect();
+            const ratio = (rect.bottom - e.clientY) / rect.height; // inversé : haut = plus fort
+            return Math.max(0, Math.min(1, ratio));
+        }
+
+        function startVolumeDrag(e) {
+            isVolumeDragging = true;
+            const ratio = volumeRatioFromEvent(e);
+            applyVolumeVisual(ratio);
+        }
+
+        window.addEventListener('mousemove', (e) => {
+            if (!isVolumeDragging) return;
+            applyVolumeVisual(volumeRatioFromEvent(e));
+        });
+
+        window.addEventListener('mouseup', async (e) => {
+            if (!isVolumeDragging) return;
+            isVolumeDragging = false;
+            const ratio = volumeRatioFromEvent(e);
+            const data = await window.pywebview.api.set_volume(ratio);
+            if (data) updateNowPlaying(data);
+        });
+
     </script>
 </body>
 

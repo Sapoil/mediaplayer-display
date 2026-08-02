@@ -4,6 +4,8 @@ import threading
 import webview
 import os
 import psutil
+from pycaw.pycaw import AudioUtilities
+import pythoncom
 from winrt.windows.media.control import (
     GlobalSystemMediaTransportControlsSessionManager as MediaManager,
 )
@@ -11,7 +13,6 @@ from winrt.windows.storage.streams import DataReader, Buffer, InputStreamOptions
 
 # TODOLATER: Meilleure qualité de thumbnail ?
 # FIXME: Icône bien affiché sauf dans la barre des tâches, à vérifier après déploiement
-# TODO: Volume
 # TODO? Potentielle modification du style d'affichage/ajouts
 # TODO: Vérifier si une adaptation sous Linux est possible
 
@@ -23,6 +24,12 @@ async def _get_current_session():
     return sessions.get_current_session()
 
 
+def _get_volume_interface():
+    pythoncom.CoInitialize()
+    device = AudioUtilities.GetSpeakers()
+    return device.EndpointVolume if device else None
+
+
 # Class used as a link between the Pyhton and JS code, its methods can be called by JS
 class Api:
     def __init__(self):
@@ -30,7 +37,15 @@ class Api:
 
     # Function called by JS to fecth the data about the current media playing
     def get_now_playing(self):
-        return self.latest_data or {}
+        data = dict(self.latest_data) if self.latest_data else {}
+        try:
+            vol = _get_volume_interface()
+            if vol:
+                data["volume"] = round(vol.GetMasterVolumeLevelScalar(), 2)
+                data["muted"] = bool(vol.GetMute())
+        except Exception as e:
+            print(f"volume error: {e}")
+        return data
 
     def play_pause(self):
         async def _do():
@@ -75,6 +90,34 @@ class Api:
         if data:
             self.latest_data = data
         return data
+
+    def set_volume(self, value):
+        try:
+            vol = _get_volume_interface()
+            value = max(0.0, min(1.0, float(value)))
+            if vol:
+                vol.SetMasterVolumeLevelScalar(value, None)
+                if value > 0 and vol.GetMute():
+                    vol.SetMute(0, None)
+            return {"volume": value, "muted": False}
+        except Exception:
+            return None
+
+    def toggle_mute(self):
+        try:
+            vol = _get_volume_interface()
+            if vol:
+                new_state = not vol.GetMute()
+                vol.SetMute(new_state, None)
+                return {
+                    "volume": round(vol.GetMasterVolumeLevelScalar(), 2),
+                    "muted": bool(new_state),
+                }
+            else:
+                return None
+        except Exception as e:
+            print(f"toggle_mute error: {e}")
+            return None
 
     # Closes the app as quickly and cleanly as possible, first we destroy the window so the user doesn't see it right after clicking then we destroy the children processes and then we call os._exit(0) to assure everything was closed
     def close_app(self):
