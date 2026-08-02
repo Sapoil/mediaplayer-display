@@ -8,12 +8,14 @@ import base64
 import os
 
 
+# Allows to get and control the volume
 def get_volume_interface():
     pythoncom.CoInitialize()
     device = AudioUtilities.GetSpeakers()
     return device.EndpointVolume if device else None
 
 
+# Gets the Media Manager session to control and read values
 async def get_current_session():
     sessions = await MediaManager.request_async()
     return sessions.get_current_session()
@@ -66,6 +68,7 @@ KNOWN_APPS = {
 }
 
 
+# Translates the source app value got by get_media_info to a comprehensible string
 def clean_source_app(aumid):
     if not aumid:
         return None
@@ -80,6 +83,7 @@ def clean_source_app(aumid):
     return aumid
 
 
+# Allows to get files path
 def resource_path(relative_path):
     base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, relative_path)

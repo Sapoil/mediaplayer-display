@@ -24,12 +24,12 @@ class Api:
             print(f"volume error: {e}")
         return data
 
+    # Tells the Media Manager to pause or to play the current media, called by JS. Calls get_media_info to update
     def play_pause(self):
         async def _do():
             session = await get_current_session()
             if session:
                 await session.try_toggle_play_pause_async()
-            # petit délai pour laisser le temps à l'app source de mettre à jour son état SMTC
             await asyncio.sleep(0.15)
             return await get_media_info()
 
@@ -38,6 +38,7 @@ class Api:
             self.latest_data = data  # évite un flicker au prochain tick du polling
         return data
 
+    # Tells the Media Manager to skip to the next track, called by JS
     def next_track(self):
         async def _do():
             session = await get_current_session()
@@ -46,6 +47,7 @@ class Api:
 
         asyncio.run(_do())
 
+    # Tells the Media Manager to go to the previous track, called by JS
     def previous_track(self):
         async def _do():
             session = await get_current_session()
@@ -54,6 +56,7 @@ class Api:
 
         asyncio.run(_do())
 
+    # Tells the Media Manager to go to a timecode, called by JS
     def seek(self, position_seconds):
         async def _do():
             session = await get_current_session()
@@ -68,6 +71,7 @@ class Api:
             self.latest_data = data
         return data
 
+    # Sets the OS volume
     def set_volume(self, value):
         try:
             value = max(0.0, min(1.0, float(value)))
@@ -81,6 +85,7 @@ class Api:
         except Exception:
             return None
 
+    # Mutes the sound, while keeping the current value of volume
     def toggle_mute(self):
         try:
             if self.vol:
