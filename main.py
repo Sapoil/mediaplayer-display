@@ -3,6 +3,7 @@ import base64
 import threading
 import webview
 import os
+import sys
 import psutil
 from pycaw.pycaw import AudioUtilities
 import pythoncom
@@ -11,12 +12,19 @@ from winrt.windows.media.control import (
 )
 from winrt.windows.storage.streams import DataReader, Buffer, InputStreamOptions
 
-# TODOLATER: Meilleure qualité de thumbnail ?
-# FIXME: Icône bien affiché sauf dans la barre des tâches, à vérifier après déploiement
+# TODOLATER: Meilleure qualité de thumbnail ? Il faudrait faire une requête directement sur une plateforme (Deezer par exemple)
 # TODO? Potentielle modification du style d'affichage/ajouts
 # TODO: Vérifier si une adaptation sous Linux est possible
 
 WINDOW_TITLE = "Now Playing"
+
+
+def resource_path(relative_path):
+    if hasattr(sys, "_MEIPASS"):
+        base_path = sys._MEIPASS
+    else:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_path, relative_path)
 
 
 async def _get_current_session():
@@ -213,11 +221,11 @@ if __name__ == "__main__":
     api = Api()
     window = webview.create_window(
         title=WINDOW_TITLE,
-        url="ui.html",
+        url=resource_path("ui.html"),
         fullscreen=True,
         frameless=True,
         easy_drag=False,
         js_api=api,
     )
     threading.Thread(target=polling_loop, args=(api,), daemon=True).start()
-    webview.start(debug=False, icon="icon.ico")
+    webview.start(debug=False, icon=resource_path("icon.ico"))
